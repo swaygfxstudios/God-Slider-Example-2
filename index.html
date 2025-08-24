@@ -92,7 +92,7 @@ html, body {
     opacity: 1;
 }
 
-/* Text overlay - smaller and fades during reveal */
+/* Animated text overlay */
 .cinematic-text {
     position: absolute;
     top: 50%;
@@ -103,6 +103,7 @@ html, body {
     z-index: 15;
     opacity: 0;
     transition: opacity 0.5s ease;
+    will-change: transform, opacity, filter;
 }
 
 .cinematic-text p {
@@ -111,16 +112,55 @@ html, body {
     text-shadow: 2px 2px 8px rgba(0,0,0,0.8);
     font-weight: 300;
     letter-spacing: 0.5px;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    transform: scale(1);
+    filter: blur(0px);
 }
 
 .cinematic-section.active .cinematic-text {
     opacity: 1;
 }
 
-/* Fade text during reveal for cinematic immersion */
-.cinematic-text.fade-during-reveal {
-    opacity: 0.3;
-    transition: opacity 0.8s ease;
+/* Text animation states based on scroll progress */
+.cinematic-text.scroll-phase-1 p {
+    transform: scale(1.1);
+    opacity: 0.8;
+    filter: blur(0.5px);
+}
+
+.cinematic-text.scroll-phase-2 p {
+    transform: scale(1.3);
+    opacity: 0.6;
+    filter: blur(1px);
+}
+
+.cinematic-text.scroll-phase-3 p {
+    transform: scale(1.6);
+    opacity: 0.4;
+    filter: blur(2px);
+}
+
+.cinematic-text.scroll-phase-4 p {
+    transform: scale(2);
+    opacity: 0.2;
+    filter: blur(3px);
+}
+
+.cinematic-text.scroll-phase-5 p {
+    transform: scale(2.5);
+    opacity: 0.1;
+    filter: blur(4px);
+}
+
+.cinematic-text.scroll-phase-complete p {
+    transform: scale(3);
+    opacity: 0;
+    filter: blur(5px);
+}
+
+/* Reverse animation when scrolling back up */
+.cinematic-text.scroll-reverse p {
+    transition: all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
 }
 
 /* Scroll hint */
@@ -195,6 +235,14 @@ html, body {
     .cinematic-text p {
         font-size: 1rem;
     }
+    
+    /* Reduce text scaling on mobile for better readability */
+    .cinematic-text.scroll-phase-1 p { transform: scale(1.05); }
+    .cinematic-text.scroll-phase-2 p { transform: scale(1.15); }
+    .cinematic-text.scroll-phase-3 p { transform: scale(1.3); }
+    .cinematic-text.scroll-phase-4 p { transform: scale(1.5); }
+    .cinematic-text.scroll-phase-5 p { transform: scale(1.8); }
+    .cinematic-text.scroll-phase-complete p { transform: scale(2); }
 }
 
 @media (max-width: 480px) {
@@ -205,6 +253,14 @@ html, body {
     .cinematic-text p {
         font-size: 0.9rem;
     }
+    
+    /* Further reduce scaling on small screens */
+    .cinematic-text.scroll-phase-1 p { transform: scale(1.03); }
+    .cinematic-text.scroll-phase-2 p { transform: scale(1.08); }
+    .cinematic-text.scroll-phase-3 p { transform: scale(1.15); }
+    .cinematic-text.scroll-phase-4 p { transform: scale(1.25); }
+    .cinematic-text.scroll-phase-5 p { transform: scale(1.4); }
+    .cinematic-text.scroll-phase-complete p { transform: scale(1.6); }
 }
 
 /* Smooth scrolling for the page */
@@ -278,6 +334,7 @@ html {
     let scrollHint = null;
     let cinematicText = null;
     let isActive = false;
+    let lastScrollProgress = 0;
     
     // Throttle function for performance
     function throttle(func, limit) {
@@ -330,6 +387,40 @@ html {
         if (afterImg.complete) imageLoaded();
     }
     
+    // Update text animation based on scroll progress
+    function updateTextAnimation(scrollProgress, isScrollingDown) {
+        if (!cinematicText) return;
+        
+        // Remove all existing phase classes
+        cinematicText.classList.remove(
+            'scroll-phase-1', 'scroll-phase-2', 'scroll-phase-3', 
+            'scroll-phase-4', 'scroll-phase-5', 'scroll-phase-complete',
+            'scroll-reverse'
+        );
+        
+        // Add reverse class if scrolling up for smoother transition
+        if (!isScrollingDown && scrollProgress < lastScrollProgress) {
+            cinematicText.classList.add('scroll-reverse');
+        }
+        
+        // Apply phase based on scroll progress
+        if (scrollProgress >= 0.9) {
+            cinematicText.classList.add('scroll-phase-complete');
+        } else if (scrollProgress >= 0.75) {
+            cinematicText.classList.add('scroll-phase-5');
+        } else if (scrollProgress >= 0.6) {
+            cinematicText.classList.add('scroll-phase-4');
+        } else if (scrollProgress >= 0.45) {
+            cinematicText.classList.add('scroll-phase-3');
+        } else if (scrollProgress >= 0.3) {
+            cinematicText.classList.add('scroll-phase-2');
+        } else if (scrollProgress >= 0.15) {
+            cinematicText.classList.add('scroll-phase-1');
+        }
+        
+        lastScrollProgress = scrollProgress;
+    }
+    
     // Setup scroll-driven animation
     function setupScrollHandler() {
         const handleScroll = throttle(() => {
@@ -350,6 +441,7 @@ html {
                 
                 // Calculate progress (0 to 1)
                 const scrollProgress = Math.max(0, Math.min(1, -rect.top / (sectionHeight - windowHeight)));
+                const isScrollingDown = scrollProgress >= lastScrollProgress;
                 
                 // Update reveal effect
                 const revealPercent = scrollProgress * 100;
@@ -365,14 +457,8 @@ html {
                 const scale = 1 + (easedProgress * 0.05); // Subtle zoom from 1 to 1.05
                 cinematicViewport.style.transform = `scale(${scale})`;
                 
-                // Fade text during reveal for cinematic immersion
-                if (cinematicText) {
-                    if (scrollProgress > 0.2 && scrollProgress < 0.8) {
-                        cinematicText.classList.add('fade-during-reveal');
-                    } else {
-                        cinematicText.classList.remove('fade-during-reveal');
-                    }
-                }
+                // Update text animation
+                updateTextAnimation(scrollProgress, isScrollingDown);
                 
             } else {
                 if (isActive && rect.bottom < 0) {
@@ -380,7 +466,11 @@ html {
                     afterImage.style.clipPath = `inset(0 0 0 0%)`;
                     progressFill.style.width = '100%';
                     if (cinematicText) {
-                        cinematicText.classList.remove('fade-during-reveal');
+                        cinematicText.classList.remove(
+                            'scroll-phase-1', 'scroll-phase-2', 'scroll-phase-3', 
+                            'scroll-phase-4', 'scroll-phase-5', 'scroll-reverse'
+                        );
+                        cinematicText.classList.add('scroll-phase-complete');
                     }
                 } else if (rect.top > windowHeight) {
                     // Section hasn't been reached yet, reset
@@ -389,8 +479,13 @@ html {
                     afterImage.style.clipPath = `inset(0 0 0 100%)`;
                     progressFill.style.width = '0%';
                     cinematicViewport.style.transform = 'scale(1)';
+                    lastScrollProgress = 0;
                     if (cinematicText) {
-                        cinematicText.classList.remove('fade-during-reveal');
+                        cinematicText.classList.remove(
+                            'scroll-phase-1', 'scroll-phase-2', 'scroll-phase-3', 
+                            'scroll-phase-4', 'scroll-phase-5', 'scroll-phase-complete',
+                            'scroll-reverse'
+                        );
                     }
                 }
             }
@@ -460,12 +555,12 @@ html {
         const link1 = document.createElement('link');
         link1.rel = 'preload';
         link1.as = 'image';
-        link1.href = 'https://media.sellfy.store/images/PXXhbh0L/QKbN/rage_creators_-_solder_feat._dro-capone_official_music_video.00_00_29_21.still015_copy.jpg';
+        link1.href = 'https://media.sellfy.store/images/PXXhbh0L/HlDe/ferbo_before.jpg';
         
         const link2 = document.createElement('link');
         link2.rel = 'preload';
         link2.as = 'image';
-        link2.href = 'https://media.sellfy.store/images/PXXhbh0L/oKXD/rage_creators_-_solder_feat._dro-capone_official_music_video.00_00_29_21.still014_copy.jpg';
+        link2.href = 'https://media.sellfy.store/images/PXXhbh0L/M18J/ferbo_after.jpg';
         
         document.head.appendChild(link1);
         document.head.appendChild(link2);
